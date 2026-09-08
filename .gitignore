@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+
+# 中间产物（转写生成）
+*.wav
+*_raw.txt
+*_text.txt
+out/
+tmp/
+
+# 用户本地术语表（保留 example，忽略自定义）
+glossary.md
+
+# macOS
+.DS_Store
+
+# 模型缓存（不入库）
+models/
+.env
