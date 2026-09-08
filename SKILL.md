@@ -24,6 +24,7 @@ description: 把会议/录音/视频里的音频转成中文文字（Whisper 语
 本 skill 目录（即本仓库根目录）：
 - `transcribe.py` — 转写脚本（含 `--start/--end`）
 - `diarize.py` — 声纹说话人分离（离线 pyannote + whisper 段对齐）
+- `merge_speakers.py` — 说话人合并：SPEAKER_K → 人名映射 + 碎片按时间并入主簇 + 成段（正文零改动）
 - `setup.sh` — 幂等初始化：conda 环境 audio-transcribe + 依赖 + whisper 模型
 - `setup_diarize.sh` — pyannote 声纹模型准备（需 HF_TOKEN，curl 走镜像、完全离线）
 - `glossary.example.md` — 领域黑话/术语表模板（用户可预填，标注时优先采用）
@@ -81,7 +82,7 @@ ffmpeg -v error -show_entries format=duration -show_entries stream=codec_name,sa
 ```
 - 前置：`bash setup_diarize.sh`（需 HF_TOKEN 且已在 HF 网页接受 pyannote 两个模型授权）；产出为**离线本地模型**，不联网。
 - 输出每段带 `【Speaker_K】`（K=声纹簇编号，不等同人名）。
-- **定名**：LLM/subAgent 按内容把 Speaker_K 映射为人名（边老师/学生/王老师…），产出 `transcription/<名>_带说话人.txt`。
+- **定名**：LLM/subAgent 按内容把 Speaker_K 映射为人名，再用 `merge_speakers.py --map "SPEAKER_00=边老师,SPEAKER_04=王老师" [--num-speakers N] [--mark-fragments]` 机械合并成段（保证正文零改动），产出 `transcription/<日期>/<名>_带说话人.txt`。
 - 只有「谁在何时说话」由声纹保证；「叫什么名字」靠 LLM 内容映射（无声音样本 enrollment）。
 
 ## 参数说明（transcribe.py）
@@ -103,10 +104,12 @@ ffmpeg -v error -show_entries format=duration -show_entries stream=codec_name,sa
 ## 目录约定
 
 ```
-transcription/                          # 最终交付（扁平）
-├── <日期>.txt                          # 优化后转写（部分转写首行注范围）
-├── <日期>_会议摘要.md                  # 含「术语/黑话解释」一节
-└── <日期>_任务摘要.md
+transcription/                          # 最终交付（按录音日期分文件夹，不平铺）
+└── <日期>/
+    ├── <日期>.txt                      # 优化后转写（部分转写首行注范围）
+    ├── <日期>_带说话人.txt             # 说话人定名版（可选）
+    ├── <日期>_会议摘要.md              # 含「术语/黑话解释」一节
+    └── <日期>_任务摘要.md
 
 $AUDIO_TRANSCRIBE_TMP/                  # 中间产物（切段 wav、_raw.txt，可清理）
 ```

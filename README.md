@@ -57,7 +57,13 @@ PY="$AUDIO_TRANSCRIBE_BASE/venvs/faster-whisper/bin/python"   # 或你 venv 里�
   --out ./out/会议_diarized.txt [--start 1:29:24] [--num-speakers 3]
 ```
 
-输出逐段带 `【Speaker_K】` 标签（K 为声纹簇编号）。随后由 AI Agent 按内容把 `Speaker_K` 映射为人名，产出「带说话人」版文稿。
+输出逐段带 `【Speaker_K】` 标签（K 为声纹簇编号）。随后由 AI Agent 按内容把 `Speaker_K` 映射为人名，并用 `merge_speakers.py` 机械合并成段（正文零改动）：
+
+```bash
+python merge_speakers.py --diarized out/会议_diarized.txt \
+  --out transcription/会议/会议_带说话人.txt \
+  --map "SPEAKER_00=边老师,SPEAKER_04=王老师" --num-speakers 2
+```
 
 ## 作为 Claude Code Skill 使用
 
@@ -88,10 +94,12 @@ ln -s "$(pwd)" ~/.claude/skills/audio-transcribe
 ## 目录约定
 
 ```
-transcription/                        # 最终交付（扁平）
-├── <日期>.txt                        # 优化后转写
-├── <日期>_会议摘要.md                # 含「术语/黑话解释」一节
-└── <日期>_任务摘要.md
+transcription/                        # 最终交付（按录音日期分文件夹，不平铺）
+└── <日期>/
+    ├── <日期>.txt                    # 优化后转写
+    ├── <日期>_带说话人.txt           # 说话人定名版（可选）
+    ├── <日期>_会议摘要.md            # 含「术语/黑话解释」一节
+    └── <日期>_任务摘要.md
 
 $AUDIO_TRANSCRIBE_TMP/                # 中间产物（切段 wav、_raw.txt）
 ```
