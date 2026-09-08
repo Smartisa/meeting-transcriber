@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """faster-whisper 录音转写脚本（Intel Mac / CPU 优化）。
 
-依赖：/Volumes/ExtendHD/Environment/venvs/faster-whisper 内的 faster-whisper。
+依赖：conda 环境 audio-transcribe（/Volumes/ExtendHD/Environment/miniconda3/miniconda3/envs/audio-transcribe）内的 faster-whisper。
 模型、镜像缓存、临时 wav 全部落外置盘（不写内置盘）。
 
 用法示例：
