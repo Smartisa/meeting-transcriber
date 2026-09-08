@@ -125,10 +125,12 @@ def main():
 
         with open(args.out, "w", encoding="utf-8") as f:
             for s, e, text in segs:
-                spk = speaker_for(offset + s, offset + e)
-                f.write(f"[{fmt(offset + s)} - {fmt(offset + e)}] 【{spk}】 {text}\n")
+                # 段时间戳已是绝对时间（_raw.txt 自转写起即含 --start 偏移），直接写出；
+                # 与声纹片段（相对切段起点 0）比较时需减去偏移。
+                spk = speaker_for(s - offset, e - offset)
+                f.write(f"[{fmt(s)} - {fmt(e)}] 【{spk}】 {text}\n")
                 f.flush()
-                print(f"{fmt(offset + s)} 【{spk}】 {text}", flush=True)
+                print(f"{fmt(s)} 【{spk}】 {text}", flush=True)
         print("DONE", flush=True)
     finally:
         try:
