@@ -14,7 +14,8 @@ description: 把会议/录音/视频里的音频转成中文文字（Whisper 语
 | `AUDIO_TRANSCRIBE_BASE` | `/Volumes/ExtendHD/Environment` | 依赖/模型/临时文件根目录 |
 | `AUDIO_TRANSCRIBE_FFMPEG` | `$BASE/.../Tools/bin/ffmpeg` | ffmpeg 路径 |
 | `AUDIO_TRANSCRIBE_TMP` | `$BASE/tmp/audio-transcribe` | 中间产物目录 |
-| `AUDIO_TRANSCRIBE_PYTHON` | `$BASE/.../Tools/bin/python` | 建 venv 所用 Python |
+| `AUDIO_TRANSCRIBE_PYTHON` | `$BASE/.../envs/audio-transcribe/bin/python` | conda 专用环境 Python（`setup.sh` 构建：torch + faster-whisper + pyannote） |
+| `AUDIO_TRANSCRIBE_PYANNOTE_CONFIG` | `$BASE/models/pyannote/diarization-3.1/config.yaml` | 离线 pyannote pipeline 配置 |
 | `HF_ENDPOINT` | `https://hf-mirror.com` | 模型下载镜像（huggingface.co 被墙时可用） |
 | `HF_HOME` | `$BASE/models/whisper` | 模型缓存目录 |
 
@@ -22,14 +23,16 @@ description: 把会议/录音/视频里的音频转成中文文字（Whisper 语
 
 本 skill 目录（即本仓库根目录）：
 - `transcribe.py` — 转写脚本（含 `--start/--end`）
-- `setup.sh` — 幂等初始化：建 venv、装 faster-whisper、预下载模型
+- `diarize.py` — 声纹说话人分离（离线 pyannote + whisper 段对齐）
+- `setup.sh` — 幂等初始化：conda 环境 audio-transcribe + 依赖 + whisper 模型
+- `setup_diarize.sh` — pyannote 声纹模型准备（需 HF_TOKEN，curl 走镜像、完全离线）
 - `glossary.example.md` — 领域黑话/术语表模板（用户可预填，标注时优先采用）
 
 ## 流程
 
 ### 0. 环境检查（缺失才 setup）
 ```bash
-PY="${AUDIO_TRANSCRIBE_BASE:-/Volumes/ExtendHD/Environment}/venvs/faster-whisper/bin/python"
+PY="${AUDIO_TRANSCRIBE_BASE:-/Volumes/ExtendHD/Environment}/miniconda3/miniconda3/envs/audio-transcribe/bin/python"
 "$PY" -c "import faster_whisper" 2>/dev/null && echo ok || bash ./setup.sh medium
 ```
 
@@ -70,6 +73,17 @@ ffmpeg -v error -show_entries format=duration -show_entries stream=codec_name,sa
 3. 文末附「术语/黑话对照表」逐条解释；**优先用 `glossary.example.md` 预填项**，缺失的由 agent 依上下文 + 常识推断并标 `（推断）`。
 产出：在每份 `会议摘要.md` 末尾追加「术语/黑话解释」一节。
 
+### 7.（可选）音色说话人分离——从音频层面区分谁在说
+转写只给文字，不知道是谁说的；需要从**音色**区分时用 `diarize.py`：
+```bash
+"$PY" diarize.py --input "<原音频>" --segments "$AUDIO_TRANSCRIBE_TMP/<名>_raw.txt" \
+  --out "$AUDIO_TRANSCRIBE_TMP/<名>_diarized.txt" [--start HH:MM:SS] [--num-speakers N]
+```
+- 前置：`bash setup_diarize.sh`（需 HF_TOKEN 且已在 HF 网页接受 pyannote 两个模型授权）；产出为**离线本地模型**，不联网。
+- 输出每段带 `【Speaker_K】`（K=声纹簇编号，不等同人名）。
+- **定名**：LLM/subAgent 按内容把 Speaker_K 映射为人名（边老师/学生/王老师…），产出 `transcription/<名>_带说话人.txt`。
+- 只有「谁在何时说话」由声纹保证；「叫什么名字」靠 LLM 内容映射（无声音样本 enrollment）。
+
 ## 参数说明（transcribe.py）
 
 | 参数 | 默认 | 说明 |
@@ -103,5 +117,5 @@ $AUDIO_TRANSCRIBE_TMP/                  # 中间产物（切段 wav、_raw.txt�
 - 模型下载默认走 `hf-mirror.com` 镜像；如网络可直连 huggingface.co，可 `export HF_ENDPOINT=https://huggingface.co`。
 - 转写是前置步骤；优化与摘要 token 消耗大，优化务必分块并行。
 - 核验无漏段：`_raw.txt` 首段时间戳 ≈ 起始（整段则 ≈0s）、末段 ≈ 总时长。
-- 转写本身不做说话人分离；需区分多人时另用 diarization（本 skill 不覆盖）。
+- 转写本身不做说话人分离；需要区分多人时复用本 skill 第 7 步（`diarize.py` 音色分离 + LLM 定名）。
 - 首次使用前把 `glossary.example.md` 复制为 `glossary.md` 并填入你的领域黑话，术语解释会更准。
